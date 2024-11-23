@@ -1,6 +1,7 @@
 
 let timerInterval;
 let timeLeft = 25 * 60; // 25 minutes in seconds
+let isRunning = false;
 
 
 const timerDisplay = document.getElementById("timer");
@@ -18,17 +19,44 @@ function updateDisplay() {
     timerDisplay.textContent = formatTime(timeLeft);
 }
 
+function saveState() {
+    chrome.storage.local.set({
+        timeLeft,
+        isRunning
+    })
+}
+
+function restoreState() {
+    chrome.storage.local.get(["timeLeft", "isRunning"], (result) => {
+        if (result.timeLeft !== undefined) {
+            timeLeft = result.timeLeft;
+        }
+        if (result.isRunning !== undefined) {
+            isRunning = result.isRunning;
+        }
+        updateDisplay();
+
+        if (isRunning) {
+            startTimer();
+        }
+    });
+}
 // Start the timer
 function startTimer() {
     if (timerInterval) return; // Prevent multiple intervals
 
+    isRunning = true;
+    saveState();
     timerInterval = setInterval(() => {
         if (timeLeft > 0) {
             timeLeft--;
             updateDisplay();
+            saveState();
         } else {
             clearInterval(timerInterval);
             timerInterval = null;
+            isRunning = false;
+            saveState();
 
             // Show a notification when the timer ends
             chrome.notifications.create({
@@ -44,7 +72,10 @@ function startTimer() {
 
 // Event listener for the start button
 startButton.addEventListener("click", () => {
-    startTimer();
+    if (!isRunning) {
+        startTimer();
+    }
+
 });
 
 // Initialize the display
