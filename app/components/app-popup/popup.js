@@ -1,12 +1,7 @@
-
-let timerInterval;
-let timeLeft = 0.25 * 60; // 25 minutes in seconds
-let isRunning = false;
-let interval;
-
-
+let interval; // Interval for polling the background
 const timerDisplay = document.getElementById("timer");
 const startButton = document.getElementById("startButton");
+const stopButton = document.getElementById("stopButton");
 
 // Format time in MM:SS format
 function formatTime(seconds) {
@@ -16,75 +11,70 @@ function formatTime(seconds) {
 }
 
 // Update the timer display
-function updateDisplay() {
+function updateDisplay(timeLeft) {
     timerDisplay.textContent = formatTime(timeLeft);
 }
 
-function saveState() {
-    chrome.storage.local.set({
-        isRunning,
-        endTime: isRunning ? Date.now() + timeLeft * 1000 : null,
-    })
-}
-
-async function restoreState() {
-    const result = await chrome.storage.local.get(["isRunning", "endTime"]);
-
-    isRunning = result.isRunning || false;
-
-    if (result.endTime) {
-        const currentTime = Date.now();
-        const remainingTime = Math.floor((result.endTime - currentTime) / 1000);
-
-        timeLeft = remainingTime > 0 ? remainingTime : 0;
-        if (timeLeft === 0) {
-            isRunning = false;
+// Fetch time left immediately from the background script
+function fetchTimeImmediately() {
+    chrome.runtime.sendMessage({ action: "getTimeLeft" }, (response) => {
+        if (response) {
+            updateDisplay(response.timeLeft);
+            if (response.isRunning) {
+                startPolling(); // Start polling if the timer is running
+            }
         }
-    }
-    updateDisplay();
-
-    if (isRunning) {
-        startTimer();
-    }
+    });
 }
-// Start the timer
-function startTimer() {
 
+// Start polling for updates from the background script
+function startPolling() {
     if (interval) return; // Prevent multiple intervals
 
-    isRunning = true;
-    saveState();
-
     interval = setInterval(() => {
-        timeLeft--;
-
-        if (timeLeft <= 0) {
-            clearInterval(interval);
-            interval = null;
-            isRunning = false;
-
-            chrome.notifications.create({
-                type: "basic",
-                iconUrl: "popup-icon.png",
-                title: "Pomodoro Timer",
-                message: "Time's up! Take a break.",
-                priority: 2
-            });
-        }
-
-        updateDisplay();
-        saveState();
-    }, 1000); // Update every second
+        chrome.runtime.sendMessage({ action: "getTimeLeft" }, (response) => {
+            if (response) {
+                updateDisplay(response.timeLeft);
+                if (!response.isRunning) {
+                    clearInterval(interval);
+                    interval = null; // Stop polling if the timer stops
+                }
+            }
+        });
+    }, 1000); // Poll every second
 }
 
-// Event listener for the start button
-startButton.addEventListener("click", () => {
-    if (!isRunning) {
-        timeLeft = 0.25 * 60;
-        startTimer();
-    }
+// Start the timer
+function startTimer() {
+    chrome.runtime.sendMessage(
+        { action: "startTimer", duration: 0.25 * 60 }, // Start a 25-minute timer
+        (response) => {
+            if (response.status === "Timer started") {
+                fetchTimeImmediately(); // Update the display immediately
+            }
+        }
+    );
+}
 
-});
+// Stop the timer
+function stopTimer() {
+    chrome.runtime.sendMessage({ action: "stopTimer" }, (response) => {
+        if (response.status === "Timer stopped") {
+            clearInterval(interval);
+            interval = null;
+            updateDisplay(0.25 * 60); // Reset to 25:00
+        }
+    });
+}
 
+// Initialize the popup
+function initializePopup() {
+    fetchTimeImmediately(); // Fetch the time immediately when the popup opens
+}
 
-restoreState();
+// Event listeners
+startButton.addEventListener("click", startTimer);
+stopButton.addEventListener("click", stopTimer);
+
+// Initialize when the popup is loaded
+initializePopup();

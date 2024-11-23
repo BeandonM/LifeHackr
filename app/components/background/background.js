@@ -1,27 +1,57 @@
-chrome.runtime.onInstalled.addListener(() => {
-    console.log("Pomodoro Timer extension installed!");
+// Default duration for the Pomodoro timer (25 minutes)
+const DEFAULT_DURATION = 0.25 * 60; // in seconds
+
+// Handle messages from other parts of the extension
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "startTimer") {
+        const durationInMinutes = message.duration / 60; // Convert seconds to minutes
+        chrome.alarms.create("pomodoroTimer", { delayInMinutes: durationInMinutes });
+
+        // Save the timer state in storage
+        chrome.storage.local.set({
+            isRunning: true,
+            endTime: Date.now() + message.duration * 1000, // Calculate end time
+        });
+
+        sendResponse({ status: "Timer started" });
+    } else if (message.action === "stopTimer") {
+        chrome.alarms.clear("pomodoroTimer");
+        chrome.storage.local.set({ isRunning: false, endTime: null });
+        sendResponse({ status: "Timer stopped" });
+    }
 });
 
+// Listen for the alarm event
 chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === "pomodoroComplete") {
+    if (alarm.name === "pomodoroTimer") {
+        // Show a notification when the timer ends
         chrome.notifications.create({
             type: "basic",
-            iconUrl: "icon.png",
+            iconUrl: "../app-popup/popup-icon.png",
             title: "Pomodoro Timer",
             message: "Time's up! Take a break.",
             priority: 2,
         });
+
+        // Reset the timer state
+        chrome.storage.local.set({ isRunning: false, endTime: null });
     }
 });
 
-// Create an alarm for when the timer completes
-function createPomodoroAlarm(durationInMinutes) {
-    chrome.alarms.create("pomodoroComplete", {
-        delayInMinutes: durationInMinutes,
-    });
-}
+// Handle messages from the popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "getTimeLeft") {
+        // Calculate remaining time based on stored endTime
+        chrome.storage.local.get(["isRunning", "endTime"], (result) => {
+            if (result.isRunning && result.endTime) {
+                const currentTime = Date.now();
+                const timeLeft = Math.max(0, Math.floor((result.endTime - currentTime) / 1000));
+                sendResponse({ timeLeft, isRunning: result.isRunning });
+            } else {
+                sendResponse({ timeLeft: 0, isRunning: false });
+            }
+        });
 
-chrome.runtime.sendMessage({
-    action: "startAlarm",
-    duration: timeLeft / 60, // Convert seconds to minutes
+        return true; // Keep the message channel open for async response
+    }
 });

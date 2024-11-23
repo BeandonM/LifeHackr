@@ -4,6 +4,7 @@
     "version": "1.0",
     "description": "Streamline your day with LifeHackr—simplify tasks, stay focused, and crush goals effortlessly.",
     "permissions": [
+        "alarms",
         "storage",
         "notifications"
     ],
