@@ -3,6 +3,13 @@
     "name": "LifeHackr",
     "version": "1.0",
     "description": "Streamline your day with LifeHackr—simplify tasks, stay focused, and crush goals effortlessly.",
+    "permissions": [
+        "storage",
+        "notifications"
+    ],
+    "background": {
+        "service_worker": "app/components/background/background.js"
+    },
     "action": {
         "default_popup": "app/components/app-popup/popup.html",
         "default_icon": {
@@ -10,9 +17,5 @@
             "48": "app/components/app-popup/popup-icon.png",
             "128": "app/components/app-popup/popup-icon.png"
         }
-    },
-    "permissions": [
-        "storage",
-        "notifications"
-    ]
+    }
 }
