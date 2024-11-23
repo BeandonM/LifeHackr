@@ -1,6 +1,6 @@
 
 let timerInterval;
-let timeLeft = 25 * 60; // 25 minutes in seconds
+let timeLeft = 0.25 * 60; // 25 minutes in seconds
 let isRunning = false;
 
 
@@ -61,7 +61,7 @@ function startTimer() {
             // Show a notification when the timer ends
             chrome.notifications.create({
                 type: "basic",
-                iconUrl: "icon.png",
+                iconUrl: "popup-icon.png",
                 title: "Pomodoro Timer",
                 message: "Time's up! Take a break.",
                 priority: 2
@@ -78,5 +78,5 @@ startButton.addEventListener("click", () => {
 
 });
 
-// Initialize the display
-updateDisplay();
+
+restoreState();
