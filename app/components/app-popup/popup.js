@@ -2,6 +2,7 @@
 let timerInterval;
 let timeLeft = 0.25 * 60; // 25 minutes in seconds
 let isRunning = false;
+let interval;
 
 
 const timerDisplay = document.getElementById("timer");
@@ -21,44 +22,47 @@ function updateDisplay() {
 
 function saveState() {
     chrome.storage.local.set({
-        timeLeft,
-        isRunning
+        isRunning,
+        endTime: isRunning ? Date.now() + timeLeft * 1000 : null,
     })
 }
 
-function restoreState() {
-    chrome.storage.local.get(["timeLeft", "isRunning"], (result) => {
-        if (result.timeLeft !== undefined) {
-            timeLeft = result.timeLeft;
-        }
-        if (result.isRunning !== undefined) {
-            isRunning = result.isRunning;
-        }
-        updateDisplay();
+async function restoreState() {
+    const result = await chrome.storage.local.get(["isRunning", "endTime"]);
 
-        if (isRunning) {
-            startTimer();
+    isRunning = result.isRunning || false;
+
+    if (result.endTime) {
+        const currentTime = Date.now();
+        const remainingTime = Math.floor((result.endTime - currentTime) / 1000);
+
+        timeLeft = remainingTime > 0 ? remainingTime : 0;
+        if (timeLeft === 0) {
+            isRunning = false;
         }
-    });
+    }
+    updateDisplay();
+
+    if (isRunning) {
+        startTimer();
+    }
 }
 // Start the timer
 function startTimer() {
-    if (timerInterval) return; // Prevent multiple intervals
+
+    if (interval) return; // Prevent multiple intervals
 
     isRunning = true;
     saveState();
-    timerInterval = setInterval(() => {
-        if (timeLeft > 0) {
-            timeLeft--;
-            updateDisplay();
-            saveState();
-        } else {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            isRunning = false;
-            saveState();
 
-            // Show a notification when the timer ends
+    interval = setInterval(() => {
+        timeLeft--;
+
+        if (timeLeft <= 0) {
+            clearInterval(interval);
+            interval = null;
+            isRunning = false;
+
             chrome.notifications.create({
                 type: "basic",
                 iconUrl: "popup-icon.png",
@@ -67,12 +71,16 @@ function startTimer() {
                 priority: 2
             });
         }
+
+        updateDisplay();
+        saveState();
     }, 1000); // Update every second
 }
 
 // Event listener for the start button
 startButton.addEventListener("click", () => {
     if (!isRunning) {
+        timeLeft = 0.25 * 60;
         startTimer();
     }
 
